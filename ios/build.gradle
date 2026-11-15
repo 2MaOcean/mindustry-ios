@@ -1,0 +1,152 @@
+buildscript{
+    repositories{
+        mavenCentral()
+    }
+
+    dependencies{
+        classpath "com.mobidevelop.robovm:robovm-gradle-plugin:2.3.26"
+    }
+}
+
+apply plugin: "java"
+apply plugin: "robovm"
+
+//iOS port: optional Java mod support - drop .jar files into ios/javamods/ and they
+//are compiled into the app (AOT) automatically at build time.
+ext.javamodJars = {
+    def dir = file('javamods')
+    return dir.exists() ? dir.listFiles().findAll{ it.isFile() && it.name.endsWith('.jar') }.sort{ it.name } : []
+}
+
+task incrementConfig{
+    def vfile = file('robovm.properties')
+    def bversion = getBuildVersion()
+    def props = new Properties()
+    if(vfile.exists()){
+        props.load(new FileInputStream(vfile))
+    }else{
+        props['app.id'] = 'io.anuke.mindustry'
+        props['app.version'] = '7.0'
+        props['app.mainclass'] = 'mindustry.ios.IOSLauncher'
+        props['app.executable'] = 'IOSLauncher'
+        props['app.name'] = 'Mindustry'
+    }
+
+    props['app.build'] = (!props.containsKey("app.build") ? 40 : props['app.build'].toInteger() + 1) + ""
+    if(bversion != "custom build"){
+        props['app.version'] = versionNumber + "." + bversion + (bversion.contains(".") ? "" : ".0")
+    }
+    //iOS port: minimum OS version, overridable with -Pminios=X (e.g. 12.0 for older devices)
+    if(project.hasProperty("minios")){
+        props['app.minios'] = project.property("minios")
+    }else if(!props.containsKey("app.minios")){
+        props['app.minios'] = '15.0'
+    }
+    props.store(vfile.newWriter(), null)
+}
+
+dependencies{
+    implementation project(":core")
+
+    implementation arcModule("natives:natives-freetype-ios")
+    implementation arcModule("backends:backend-robovm")
+
+    compileOnly project(":annotations")
+
+    //iOS port: bundle Java mods for AOT compilation
+    javamodJars().each{ jar ->
+        implementation files(jar)
+    }
+}
+
+sourceSets.main.java.srcDirs = ["src/"]
+
+ext{
+    mainClassName = "mindustry.ios.IOSLauncher"
+}
+
+tasks.register('copyNatives'){
+    doLast{
+        copy{
+            from "../../Arc/natives/natives-freetype-ios/libs"
+            into "libs"
+        }
+        //optional native libs; not required when prebuilt frameworks are present in ios/libs/
+        def nativesIos = file("../../Arc/natives/natives-ios/libs")
+        if(nativesIos.exists()){
+            copy{
+                from nativesIos
+                into "libs"
+            }
+        }
+    }
+}
+
+//iOS port: register force-link patterns for bundled Java mods so the AOT compiler
+//keeps their classes (mods load classes reflectively via Class.forName at runtime).
+tasks.register('injectJavaModLinks'){
+    doLast{
+        def jars = javamodJars()
+        if(jars.isEmpty()) return
+
+        def xmlFile = file('robovm.xml')
+        def text = xmlFile.text
+        def added = []
+        jars.each{ jar ->
+            def paths = [] as Set
+            new java.util.zip.ZipFile(jar).entries().each{ entry ->
+                if(entry.name.endsWith('.class') && entry.name.contains('/')){
+                    def pkg = entry.name.substring(0, entry.name.lastIndexOf('/'))
+                    paths << (pkg.split('/') as List)
+                }
+            }
+            if(paths.isEmpty()) return
+            //longest common package prefix, capped at 3 segments to avoid over-linking
+            def common = new ArrayList(paths.head())
+            paths.tail().each{ list ->
+                def size = Math.min(common.size(), list.size())
+                int i = 0
+                while(i < size && common[i] == list[i]) i++
+                while(common.size() > i) common.remove(common.size() - 1)
+            }
+            if(common.isEmpty()) return
+            def segs = common.size() > 3 ? common[0..<3] : common
+            def pattern = segs.join('.') + '.**'
+            if(!text.contains("<pattern>${pattern}</pattern>")){
+                added << pattern
+            }
+        }
+        if(!added.isEmpty()){
+            def inject = added.collect{ "        <pattern>${it}</pattern>" }.join('\n')
+            text = text.replace('</forceLinkClasses>', inject + '\n    </forceLinkClasses>')
+            xmlFile.text = text
+            println "iOS port: force-linked Java mod packages: " + added.join(", ")
+        }
+    }
+}
+
+tasks.register('deploy'){
+    dependsOn createIPA
+}
+
+launchIPhoneSimulator.dependsOn build
+launchIPadSimulator.dependsOn build
+launchIOSDevice.dependsOn build
+createIPA.dependsOn build
+createIPA.dependsOn copyNatives
+createIPA.dependsOn injectJavaModLinks
+createIPA.dependsOn ":tools:pack"
+createIPA.dependsOn ":core:preGen"
+
+robovm{
+    archs = "arm64"
+
+    if(project.hasProperty("signIdentity")) println "iOS Sign Identity: " + project.property("signIdentity")
+    if(project.hasProperty("provisioningProfile")) println "iOS Provisioning Profile: " + project.property("provisioningProfile")
+
+    iosSignIdentity = project.properties["signIdentity"]
+    iosProvisioningProfile = project.properties["provisioningProfile"]
+    //iOS port: skip signing by default so CI produces an unsigned IPA for self-signing
+    //(Sideloadly / AltStore). Pass -PsignIdentity="..." to sign inside the build instead.
+    iosSkipSigning = !project.hasProperty("signIdentity")
+}
