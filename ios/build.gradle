@@ -53,6 +53,10 @@ dependencies{
 
     compileOnly project(":annotations")
 
+    //iOS port: prebuilt iOS frameworks (arc, MetalANGLEKit, libEGL, libGLESv2,
+    //libfeature_support) packaged for RoboVM's META-INF/robovm/ios/libs lookup.
+    implementation files('native-frameworks.jar')
+
     //iOS port: bundle Java mods for AOT compilation
     javamodJars().each{ jar ->
         implementation files(jar)
