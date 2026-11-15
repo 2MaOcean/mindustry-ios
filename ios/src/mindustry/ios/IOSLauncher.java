@@ -11,6 +11,9 @@ import mindustry.*;
 import mindustry.game.EventType.*;
 import mindustry.net.*;
 import mindustry.ui.FileChooser.*;
+import mindustry.ui.fragments.MenuFragment;
+import mindustry.ios.launcher.IosLauncherDialog;
+import mindustry.gen.Icon;
 import mindustry.ui.*;
 import org.robovm.apple.coregraphics.*;
 import org.robovm.apple.foundation.*;
@@ -209,6 +212,14 @@ public class IOSLauncher extends IOSApplication.Delegate{
     @Override
     public boolean didFinishLaunching(UIApplication application, UIApplicationLaunchOptions options){
         boolean b = super.didFinishLaunching(application, options);
+
+        Events.on(ClientLoadEvent.class, e -> Core.app.post(() -> Core.app.post(() -> {
+            //iOS port: show the launcher screen and register a main menu entry for it.
+            if(MenuFragment.customMenuButtons.isEmpty()){
+                MenuFragment.customMenuButtons.add(new MenuFragment.MenuButton("启动器", Icon.list, IosLauncherDialog::toggle));
+            }
+            IosLauncherDialog.maybeShow();
+        })));
 
         Events.on(ClientLoadEvent.class, e -> Core.app.post(() -> Core.app.post(() -> Core.scene.table(Styles.black9, t -> {
             t.visible(() -> {

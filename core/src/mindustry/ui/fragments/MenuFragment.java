@@ -28,6 +28,8 @@ public class MenuFragment{
     private Button currentMenu;
     private MenuRenderer renderer;
     private Seq<MenuButton> customButtons = new Seq<>();
+    /** iOS port: additional custom menu buttons that can be registered by platform launchers. */
+    public static Seq<MenuButton> customMenuButtons = new Seq<>();
     public Seq<MenuButton> desktopButtons = null;
 
     public void build(Group parent){
@@ -150,7 +152,7 @@ public class MenuFragment{
             exit = new MobileButton(Icon.exit, "@quit", () -> Core.app.exit()),
             about = new MobileButton(Icon.info, "@about.button", ui.about::show);
 
-        Seq<MobileButton> customs = customButtons.map(b -> new MobileButton(b.icon, b.text, b.runnable == null ? () -> {} : b.runnable));
+        Seq<MobileButton> customs = customButtons.copy().addAll(customMenuButtons).map(b -> new MobileButton(b.icon, b.text, b.runnable == null ? () -> {} : b.runnable));
 
         if(!Core.graphics.isPortrait()){
             container.marginTop(60f);
@@ -226,7 +228,7 @@ public class MenuFragment{
             }
 
             buttons(t, desktopButtons.toArray(MenuButton.class));
-            buttons(t, customButtons.toArray(MenuButton.class));
+            buttons(t, customButtons.copy().addAll(customMenuButtons).toArray(MenuButton.class));
             buttons(t, new MenuButton("@quit", Icon.exit, Core.app::exit));
         }).width(width).growY();
 
