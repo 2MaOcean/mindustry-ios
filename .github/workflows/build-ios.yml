@@ -47,14 +47,6 @@ jobs:
           path: ~/.robovm
           key: robovm-sdk-${{ runner.os }}-xcode16
 
-      - name: Restore large assets from official build
-        run: |
-          curl -L --retry 3 -o /tmp/assets.jar https://github.com/Anuken/MindustryBuilds/releases/download/master/assets.jar
-          unzip -n -q /tmp/assets.jar -d core/assets
-          ls core/assets/music | head -3
-          ls core/assets/sounds | head -3
-          ls core/assets/maps | head -3
-
       - name: Build unsigned IPA
         run: |
           unset ANDROID_HOME

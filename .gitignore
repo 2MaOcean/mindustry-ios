@@ -168,7 +168,3 @@ core/assets/logicids.dat
 
 # project files for the sectors
 core/assets-raw/sprites/ui/sectors/*.json
-# iOS port: large binary assets are fetched from official MindustryBuilds assets.jar in CI
-core/assets/music/
-core/assets/sounds/
-core/assets/maps/
