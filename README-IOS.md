@@ -24,6 +24,16 @@
 | `.gitignore` | 不再忽略 `ios/libs/` 与 `ios/robovm.properties` | 上述依赖可入库 |
 | `.github/workflows/build-ios.yml` | 新增 | 免费 macOS 云端一键构建 |
 
+## 已验证的首次构建
+
+- 构建号 `8.20261115.1018`（Run [43703443014](https://github.com/2MaOcean/mindustry-ios/actions/runs/43703443014)）
+- 已验证：官方 Bundle ID `io.anuke.mindustry`、MinimumOSVersion 15.0、
+  arm64 AOT 二进制 63MB、5 个 framework 齐全、Rhino 引擎就位、无第三方痕迹
+- CI 期间修复的两个关键问题（供后续维护参考）：
+  1. 资源与源码快照不同步（`Sounds` 类由 `assets/sounds` 目录生成）→ 资源随仓库分发
+  2. RoboVM 只从 classpath jar 的 `META-INF/robovm/ios/robovm.xml` 声明的
+     `frameworkPaths` 解析 framework → frameworks 打包进 `native-frameworks.jar`
+
 ## 构建（推荐：GitHub Actions，免费）
 
 1. 在 GitHub 新建一个**公开**仓库（如 `mindustry-ios`，公开仓库 Actions 免费）。
