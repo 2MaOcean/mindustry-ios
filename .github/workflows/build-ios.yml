@@ -1,3 +1,4 @@
+# Mindustry iOS unsigned IPA builder (managed by iOS port project)
 name: Build Mindustry iOS
 
 on:
