@@ -3,6 +3,7 @@ package mindustry.ios.launcher;
 import arc.*;
 import arc.Input.*;
 import arc.files.*;
+import arc.func.*;
 import arc.graphics.*;
 import arc.scene.style.*;
 import arc.scene.ui.*;
@@ -35,6 +36,9 @@ public class IosLauncherDialog{
 
     private static boolean shown;
     private static int page;
+    /** max rows rendered per file list; keeps UI tree small for large collections */
+    private static final int initialListLimit = 60;
+    private static int listLimit = initialListLimit;
     private static Table root, content;
 
     private static final String[] pageNames = {"存档", "模组", "地图", "信息"};
@@ -75,9 +79,13 @@ public class IosLauncherDialog{
     public static void hide(){
         if(root != null){
             root.remove();
-            root = null;
         }
+        //drop all static references so the entire UI tree can be garbage collected
+        //after the game starts - the launcher keeps zero persistent allocation.
+        root = null;
+        content = null;
         shown = false;
+        listLimit = initialListLimit;
     }
 
     //endregion
@@ -151,9 +159,7 @@ public class IosLauncherDialog{
         if(saves.length == 0){
             content.add(gray("暂无存档，开始一局游戏后即可在此管理。")).row();
         }
-        for(Fi f : saves){
-            content.add(fileRow(f, true)).row();
-        }
+        renderList(saves, f -> fileRow(f, true));
 
         content.row();
         content.add(section("备份 (" + countFiles(backupsDir(), "msav") + ")")).padTop(16f).row();
@@ -174,9 +180,7 @@ public class IosLauncherDialog{
         if(backups.length == 0){
             content.add(gray("备份会保存在数据目录的 backups/ 下，可用于恢复。")).row();
         }
-        for(Fi f : backups){
-            content.add(backupRow(f)).row();
-        }
+        renderList(backups, IosLauncherDialog::backupRow);
     }
 
     private static Table fileRow(Fi f, boolean isSave){
@@ -297,9 +301,7 @@ public class IosLauncherDialog{
         if(mods.length == 0){
             content.add(gray("暂无模组文件。")).row();
         }
-        for(Fi f : mods){
-            content.add(modRow(f)).row();
-        }
+        renderList(mods, IosLauncherDialog::modRow);
     }
 
     private static Table modRow(Fi f){
@@ -343,9 +345,7 @@ public class IosLauncherDialog{
         if(maps.length == 0){
             content.add(gray("暂无自定义地图。地图可在游戏内编辑器制作或从其他设备导入。")).row();
         }
-        for(Fi f : maps){
-            content.add(fileRow(f, false)).row();
-        }
+        renderList(maps, f -> fileRow(f, false));
     }
 
     //endregion
@@ -358,6 +358,8 @@ public class IosLauncherDialog{
             g.left();
             g.add("游戏版本").left().growX();
             g.add("[gray]" + Version.buildString() + "[/gray]").right().row();
+            g.add("当前内存占用").left().growX();
+            g.add("[gray]" + formatSize(Core.app.getJavaHeap()) + "[/gray]").right().row();
             g.add("数据目录").left().growX();
             g.add("[gray]" + shortPath(dataDirectory) + "[/gray]").right().row();
         }).pad(6f).growX().row();
@@ -405,6 +407,20 @@ public class IosLauncherDialog{
     }
 
     //endregion
+
+    /** renders at most listLimit rows, with a "show all" expansion button */
+    private static void renderList(Fi[] files, Func<Fi, Table> rowBuilder){
+        int limit = Math.min(files.length, listLimit);
+        for(int i = 0; i < limit; i++){
+            content.add(rowBuilder.get(files[i])).row();
+        }
+        if(files.length > limit){
+            content.button("显示全部 " + files.length + " 项", () -> {
+                listLimit = Integer.MAX_VALUE;
+                rebuild();
+            }).pad(8f).height(52f).growX().row();
+        }
+    }
 
     //region file utils
 
