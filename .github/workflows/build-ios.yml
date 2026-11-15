@@ -1,0 +1,86 @@
+name: Build Mindustry iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      min_ios:
+        description: "Minimum iOS version (15.0 / 13.0 / 12.0; ANGLE libs need 11+)"
+        required: false
+        default: "15.0"
+      build_version:
+        description: "Build version string; app version becomes 8.<this> (empty = timestamp)"
+        required: false
+        default: ""
+      with_java_mods:
+        description: "Bundle jars from ios/javamods/ into the app"
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  build:
+    # macos-15: Xcode 16.x, proven RoboVM AOT compatibility (same stack as
+    # Card-Forge/forge's production iOS workflow, verified through 2026).
+    runs-on: macos-15
+    timeout-minutes: 300
+    steps:
+      - name: Checkout Mindustry (this repository)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Clone Arc into the expected sibling directory
+        run: |
+          git clone --depth 1 https://github.com/Anuken/Arc.git "$GITHUB_WORKSPACE/../Arc"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Cache RoboVM SDK
+        uses: actions/cache@v5
+        with:
+          path: ~/.robovm
+          key: robovm-sdk-${{ runner.os }}-xcode16
+
+      - name: Restore large assets from official build
+        run: |
+          curl -L --retry 3 -o /tmp/assets.jar https://github.com/Anuken/MindustryBuilds/releases/download/master/assets.jar
+          unzip -n -q /tmp/assets.jar -d core/assets
+          ls core/assets/music | head -3
+          ls core/assets/sounds | head -3
+          ls core/assets/maps | head -3
+
+      - name: Build unsigned IPA
+        run: |
+          unset ANDROID_HOME
+          unset ANDROID_SDK_ROOT
+          ARGS="ios:createIPA --stacktrace"
+          if [ -n "${{ github.event.inputs.min_ios }}" ]; then
+            ARGS="$ARGS -Pminios=${{ github.event.inputs.min_ios }}"
+          fi
+          if [ -n "${{ github.event.inputs.build_version }}" ]; then
+            ARGS="$ARGS -Pbuildversion=${{ github.event.inputs.build_version }}"
+          else
+            ARGS="$ARGS -Pbuildversion=$(date +%Y%m%d.%H%M)"
+          fi
+          if [ "${{ github.event.inputs.with_java_mods }}" != "true" ]; then
+            rm -rf ios/javamods
+          fi
+          ./gradlew $ARGS
+
+      - name: Collect IPA
+        run: |
+          mkdir -p out
+          find ios/build -name "*.ipa" -exec cp {} out/ \;
+          ls -la out/
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: mindustry-ios-unsigned-ipa
+          path: out/*.ipa
+          if-no-files-found: error
