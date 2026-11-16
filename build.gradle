@@ -43,7 +43,7 @@ allprojects{
         if(!project.hasProperty("versionType")) versionType = 'official'
         appName = 'Mindustry'
         steamworksVersion = '185e76cfe630a6f0e1dd7b9bf57be41f6064a1f2'
-        rhinoVersion = '32395f942976a6d1d21ec9877664554cd5762306'
+        rhinoVersion = '51eca9930c898856dd78a324851d01ce455063b5'
 
         loadVersionProps = {
             return new Properties().with{p -> p.load(file('../core/assets/version.properties').newReader()); return p }

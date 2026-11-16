@@ -12,6 +12,7 @@ import arc.struct.*;
 import arc.util.*;
 import mindustry.*;
 import mindustry.core.Version;
+import mindustry.ui.dialogs.BaseDialog;
 import mindustry.gen.*;
 import mindustry.ui.Styles;
 import mindustry.graphics.*;
@@ -421,6 +422,40 @@ public class IosLauncherDialog{
             }).pad(8f).height(52f).growX().row();
         }
     }
+
+    //region logs
+
+    private static void showLogs(){
+        Fi logFile = dataDirectory.child("last_log.txt");
+        String text;
+        if(logFile.exists()){
+            try{
+                byte[] all = logFile.readBytes();
+                int from = Math.max(0, all.length - 32 * 1024);
+                text = new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
+                if(from > 0) text = "[gray]（仅显示最后 32KB，完整日志可分享）\n\n[/gray]" + text;
+            }catch(Throwable t){
+                text = "读取失败: " + t;
+            }
+        }else{
+            text = "日志文件不存在（首次启动尚未生成）";
+        }
+
+        final String displayText = text;
+        BaseDialog dialog = new BaseDialog("运行日志");
+        dialog.cont.pane(p -> p.add(displayText).wrap().left().growX()).grow();
+        dialog.buttons.defaults().height(56f).pad(4f);
+        if(logFile.exists()){
+            dialog.buttons.button(b -> {
+                b.image(Icon.upload);
+                b.add(" 分享完整日志");
+            }, () -> share(logFile));
+        }
+        dialog.buttons.button("@close", dialog::hide);
+        dialog.show();
+    }
+
+    //endregion
 
     //region file utils
 
