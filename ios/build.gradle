@@ -113,7 +113,17 @@ tasks.register('injectJavaModLinks'){
                 while(i < size && common[i] == list[i]) i++
                 while(common.size() > i) common.remove(common.size() - 1)
             }
-            if(common.isEmpty()) return
+            if(common.isEmpty()){
+                //multiple unrelated top-level packages: force-link each top-level
+                //package individually (skipping packages already linked elsewhere)
+                paths.collect{ it[0] }.unique().each{ top ->
+                    def pattern = top + '.**'
+                    if(top != 'mindustry' && !text.contains("<pattern>${pattern}</pattern>")){
+                        added << pattern
+                    }
+                }
+                return
+            }
             def segs = common.size() > 3 ? common[0..<3] : common
             def pattern = segs.join('.') + '.**'
             if(!text.contains("<pattern>${pattern}</pattern>")){
