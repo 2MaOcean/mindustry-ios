@@ -335,6 +335,7 @@ public class IosLauncherDialog{
         }).growX();
 
         CheckBox box = new CheckBox("启用");
+        box.setProgrammaticChangeEvents(false);
         box.setChecked(Core.settings.getBool("mod-" + metaName + "-enabled", true));
         box.changed(() -> {
             Core.settings.put("mod-" + metaName + "-enabled", box.isChecked());
@@ -414,6 +415,7 @@ public class IosLauncherDialog{
 
         content.table(g -> {
             CheckBox box = new CheckBox("跳过启动器，下次启动直接进入游戏");
+            box.setProgrammaticChangeEvents(false);
             box.setChecked(!isEnabled());
             box.changed(() -> Core.settings.put(enabledKey, !box.isChecked()));
             g.add(box).left().pad(10f);
