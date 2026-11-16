@@ -77,3 +77,14 @@ jobs:
           name: mindustry-ios-unsigned-ipa
           path: out/*.ipa
           if-no-files-found: error
+
+      - name: Publish IPA to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="latest-ipa"
+          IPA=$(find out -name "*.ipa" | head -1)
+          gh release create "$TAG" "$IPA" --title "Mindustry iOS build ${{ inputs.build_version || 'latest' }}" \
+            --notes "Unsigned IPA - self-sign with Sideloadly/AltStore. Launcher + bundled mods included." || \
+          gh release upload "$TAG" "$IPA" --clobber
+          echo "release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
