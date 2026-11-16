@@ -44,7 +44,7 @@ public class IosLauncherDialog{
     private static int listLimit = initialListLimit;
     private static Table root, content;
 
-    private static final String[] pageNames = {"存档", "模组", "地图", "信息"};
+    private static final String[] pageNames = {"存档", "模组", "地图", "蓝图", "信息"};
 
     //region lifecycle
 
@@ -142,7 +142,8 @@ public class IosLauncherDialog{
             case 0 -> buildSaves();
             case 1 -> buildMods();
             case 2 -> buildMaps();
-            case 3 -> buildInfo();
+            case 3 -> buildSchems();
+            case 4 -> buildInfo();
         }
     }
 
@@ -305,6 +306,22 @@ public class IosLauncherDialog{
             content.add(gray("暂无模组文件。")).row();
         }
         renderList(mods, IosLauncherDialog::modRow);
+    }
+
+    private static void buildSchems(){
+        content.add(section("蓝图 (" + countFiles(schematicDirectory, "msch", "mschx") + ")")).row();
+        content.button(b -> {
+            b.image(Icon.add);
+            b.add(" 导入蓝图 (.msch / .mschx)");
+        }, Styles.cleart, () -> importTo(schematicDirectory, "msch", "mschx")).pad(6f).height(56f).growX().row();
+
+        Fi[] schems = listFiles(schematicDirectory, "msch", "mschx");
+        if(schems.length == 0){
+            content.add(gray("暂无自定义蓝图。可在游戏内蓝图编辑器制作，或从其他设备导入。")).row();
+        }
+        for(Fi f : schems){
+            content.add(fileRow(f, false)).row();
+        }
     }
 
     private static Table modRow(Fi f){
@@ -532,6 +549,7 @@ public class IosLauncherDialog{
     private static int pageOf(Fi dir){
         if(dir.equals(modDirectory)) return 1;
         if(dir.equals(customMapDirectory)) return 2;
+        if(dir.equals(schematicDirectory)) return 3;
         return 0;
     }
 

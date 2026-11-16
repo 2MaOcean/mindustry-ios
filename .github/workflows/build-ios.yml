@@ -84,7 +84,9 @@ jobs:
         run: |
           TAG="latest-ipa"
           IPA=$(find out -name "*.ipa" | head -1)
-          gh release create "$TAG" "$IPA" --title "Mindustry iOS build ${{ inputs.build_version || 'latest' }}" \
+          IPA_NAME="Mindustry-iOS-${{ inputs.build_version || 'latest' }}.ipa"
+          cp "$IPA" "$IPA_NAME"
+          gh release create "$TAG" "$IPA_NAME" --title "Mindustry iOS build ${{ inputs.build_version || 'latest' }}" \
             --notes "Unsigned IPA - self-sign with Sideloadly/AltStore. Launcher + bundled mods included." || \
-          gh release upload "$TAG" "$IPA" --clobber
+          gh release upload "$TAG" "$IPA_NAME" --clobber
           echo "release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
