@@ -1,0 +1,35 @@
+name: Transfer artifact to release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Source workflow run id holding the ipa artifact"
+        required: true
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact from source run
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: mindustry-ios-unsigned-ipa
+
+      - name: Rename
+        run: |
+          ls -la
+          IPA=$(find . -name "*.ipa" | head -1)
+          cp "$IPA" Mindustry-iOS-${{ inputs.run_id }}.ipa
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ci-${{ inputs.run_id }} "Mindustry-iOS-${{ inputs.run_id }}.ipa" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Mindustry iOS build ${{ inputs.run_id }}" \
+            --notes "Unsigned IPA, self-sign with Sideloadly/AltStore" || \
+          gh release upload ci-${{ inputs.run_id }} "Mindustry-iOS-${{ inputs.run_id }}.ipa" --repo "$GITHUB_REPOSITORY" --clobber
