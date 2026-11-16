@@ -73,7 +73,11 @@ public class IOSLauncher extends IOSApplication.Delegate{
             /** Copies preinstalled mods from the app bundle; bundled mods default to disabled. */
             void copyBundledMods(){
                 try{
-                    Fi bundled = Core.files.internal("data/bundled-mods");
+                    //robovm packs <resource>directory</directory> content at the bundle
+                    //root, so the folder may appear as "bundled-mods" instead of
+                    //"data/bundled-mods" depending on the build - try both.
+                    Fi bundled = Core.files.internal("bundled-mods");
+                    if(!bundled.exists()) bundled = Core.files.internal("data/bundled-mods");
                     Fi mods = Core.settings.getDataDirectory().child("mods");
                     mods.mkdirs();
                     final int[] copied = {0};
