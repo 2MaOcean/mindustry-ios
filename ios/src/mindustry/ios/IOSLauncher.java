@@ -50,6 +50,26 @@ public class IOSLauncher extends IOSApplication.Delegate{
                 super.setup();
             }
 
+            /** Reads the mod's internal name from mod.json / mod.hjson. */
+            String readModMetaName(Fi f){
+                try{
+                    for(String cand : new String[]{"mod.json", "mod.hjson"}){
+                        try{
+                            Fi meta = f.child(cand);
+                            if(meta.exists()){
+                                String s = meta.readString();
+                                java.util.regex.Matcher m = java.util.regex.Pattern
+                                    .compile("(?im)^\\s*\"?name\"?\\s*[:=]\\s*\"?([A-Za-z0-9_\\-.]+)").matcher(s);
+                                if(m.find()) return m.group(1);
+                            }
+                        }catch(Throwable ignored){
+                        }
+                    }
+                }catch(Throwable ignored){
+                }
+                return f.nameWithoutExtension();
+            }
+
             /** Copies preinstalled mods from the app bundle; bundled mods default to disabled. */
             void copyBundledMods(){
                 try{
@@ -63,11 +83,13 @@ public class IOSLauncher extends IOSApplication.Delegate{
                         if(!dst.exists()){
                             src.copyTo(dst);
                             copied[0]++;
-                            String key = "mod-" + dst.nameWithoutExtension() + "-enabled";
+                            //the game keys enabled-state by the mod's internal name
+                            String metaName = readModMetaName(dst);
+                            String key = "mod-" + metaName + "-enabled";
                             if(Core.settings.get(key, null) == null){
                                 Core.settings.put(key, false);
                             }
-                            Log.info("[launcher] bundled mod installed: @ (disabled by default)", dst.name());
+                            Log.info("[launcher] bundled mod installed: @ (id: @, disabled by default)", dst.name(), metaName);
                         }
                     }
                     if(copied[0] > 0){

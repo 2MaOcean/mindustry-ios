@@ -306,24 +306,26 @@ public class IosLauncherDialog{
     }
 
     private static Table modRow(Fi f){
-        String baseName = f.nameWithoutExtension();
+        String fileName = f.nameWithoutExtension();
+        //the game keys enabled-state by the name inside mod.json/mod.hjson, not the file name
+        String metaName = modMetaName(f);
         Table row = new Table(Tex.pane);
         row.table(info -> {
-            info.add(baseName).left().growX().wrap();
-            info.add(gray(sizeText(f))).right().color(Pal.gray).padLeft(8f);
+            info.add(fileName).left().growX().wrap();
+            info.add(gray(sizeText(f) + (metaName.equals(fileName) ? "" : " · id: " + metaName))).right().color(Pal.gray).padLeft(8f);
         }).growX();
 
         CheckBox box = new CheckBox("启用");
-        box.setChecked(Core.settings.getBool("mod-" + baseName + "-enabled", true));
+        box.setChecked(Core.settings.getBool("mod-" + metaName + "-enabled", true));
         box.changed(() -> {
-            Core.settings.put("mod-" + baseName + "-enabled", box.isChecked());
+            Core.settings.put("mod-" + metaName + "-enabled", box.isChecked());
             ui.showInfo("已保存，重启游戏后生效");
         });
         row.add(box).padLeft(6f);
 
         row.button(Icon.upload, Styles.clearNonei, () -> share(f)).size(52f).tooltip("导出");
         row.button(Icon.trash, Styles.clearNonei, () -> {
-            ui.showConfirm("@confirm", "删除模组 " + baseName + " ?", () -> {
+            ui.showConfirm("@confirm", "删除模组 " + fileName + " ?", () -> {
                 f.delete();
                 rebuild();
             });
@@ -456,6 +458,26 @@ public class IosLauncherDialog{
     }
 
     //endregion
+
+    /** Reads the mod's own name from mod.json / mod.hjson inside the container. */
+    private static String modMetaName(Fi f){
+        try{
+            for(String cand : new String[]{"mod.json", "mod.hjson"}){
+                try{
+                    Fi meta = f.child(cand);
+                    if(meta.exists()){
+                        String s = meta.readString();
+                        java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("(?im)^\\s*\"?name\"?\\s*[:=]\\s*\"?([A-Za-z0-9_\\-.]+)").matcher(s);
+                        if(m.find()) return m.group(1);
+                    }
+                }catch(Throwable ignored){
+                }
+            }
+        }catch(Throwable ignored){
+        }
+        return f.nameWithoutExtension();
+    }
 
     //region file utils
 

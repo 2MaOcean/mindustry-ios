@@ -34,6 +34,28 @@
   2. RoboVM 只从 classpath jar 的 `META-INF/robovm/ios/robovm.xml` 声明的
      `frameworkPaths` 解析 framework → frameworks 打包进 `native-frameworks.jar`
 
+## 获取最新 IPA（Release 直下）
+
+每次构建完成后，IPA 自动发布到仓库的 **latest-ipa** Release：
+👉 `https://github.com/<你的用户名>/mindustry-ios/releases/tag/latest-ipa`
+（国内可用 gh-proxy 前缀加速：`https://gh-proxy.com/https://github.com/...`）
+下载后 Sideloadly/AltStore 签名安装。启动器与游戏永远同包更新。
+
+## 内置模组（默认禁用）
+
+首次启动会自动安装到模组目录，但**默认禁用**（防止模组冲突卡死游戏），
+在启动器「模组」页手动启用后重启生效：
+
+| 模组 | 类型 | 说明 |
+|---|---|---|
+| Vanilla Expansion (VE) | Java, AOT 打包 | 火星人076 的原版拓展 v2.1.3 |
+| BetaMindy | Java, AOT 打包 | sk7725 v2.01 |
+| Faster & Smarter Unloader | JS | 卸载器优化 |
+
+要增减内置模组：把 jar/zip 放进 `ios/data/bundled-mods/`（随包分发、默认禁用）
+和 `ios/javamods/`（Java 模组需 AOT 打包）后重新构建。
+启用状态按键 `mod-<内部名>-enabled` 存储，与游戏内启用逻辑共用。
+
 ## 构建（推荐：GitHub Actions，免费）
 
 1. 在 GitHub 新建一个**公开**仓库（如 `mindustry-ios`，公开仓库 Actions 免费）。
