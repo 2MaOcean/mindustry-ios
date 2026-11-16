@@ -80,7 +80,8 @@ public class IOSLauncher extends IOSApplication.Delegate{
                     for(Fi src : bundled.list()){
                         if(src.isDirectory()) continue;
                         Fi dst = mods.child(src.name());
-                        if(!dst.exists()){
+                        //install when missing, or overwrite when the bundled copy is a newer build
+                        if(!dst.exists() || dst.length() != src.length()){
                             src.copyTo(dst);
                             copied[0]++;
                             //the game keys enabled-state by the mod's internal name

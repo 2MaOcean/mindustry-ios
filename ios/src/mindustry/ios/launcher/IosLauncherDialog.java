@@ -2,6 +2,8 @@ package mindustry.ios.launcher;
 
 import arc.*;
 import arc.Input.*;
+import arc.util.Http;
+import arc.util.Http.HttpResponse;
 import arc.files.*;
 import arc.func.*;
 import arc.graphics.*;
@@ -424,6 +426,34 @@ public class IosLauncherDialog{
             }).pad(8f).height(52f).growX().row();
         }
     }
+
+    //region updates
+
+    private static void checkUpdates(){
+        ui.loadfrag.show("@loading");
+        Http.get("https://api.github.com/repos/2MaOcean/mindustry-ios/releases/tags/latest-ipa", res -> {
+            ui.loadfrag.hide();
+            try{
+                String json = res.getResultAsString();
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("\"updated_at\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
+                String updated = m.find() ? m.group(1).replace('T', ' ').replace('Z', ' ').substring(0, 16) : "?";
+                java.util.regex.Matcher mn = java.util.regex.Pattern
+                    .compile("\"name\"\\s*:\\s*\"(Mindustry-iOS[^\"]*)\"").matcher(json);
+                String asset = mn.find() ? mn.group(1) : "(ipa)";
+                ui.showInfo("[accent]最新构建：[] " + asset + "\n发布时间(UTC)： " + updated +
+                    "\n本地版本： " + Version.buildString() +
+                    "\n\n若为更新版本，请从仓库 Release 页下载新 IPA 重新签名安装。");
+            }catch(Throwable t){
+                ui.showException(t);
+            }
+        }, err -> {
+            ui.loadfrag.hide();
+            ui.showException(err);
+        });
+    }
+
+    //endregion
 
     //region logs
 
