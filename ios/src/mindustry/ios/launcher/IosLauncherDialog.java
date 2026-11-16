@@ -446,6 +446,26 @@ public class IosLauncherDialog{
         }
     }
 
+    /** extracts the most recent error line from the run log, for quick diagnosis */
+    private static String lastErrorLine(){
+        try{
+            Fi logFile = dataDirectory.child("last_log.txt");
+            if(!logFile.exists()) return "[lightgray]（无日志）[]";
+            byte[] all = logFile.readBytes();
+            String tail = new String(all, Math.max(0, all.length - 64 * 1024), Math.min(all.length, 64 * 1024), java.nio.charset.StandardCharsets.UTF_8);
+            String[] lines = tail.split("\n");
+            for(int i = lines.length - 1; i >= 0; i--){
+                String l = lines[i].trim();
+                if(l.startsWith("[E]") || l.startsWith("[W]")){
+                    return "[scarlet]" + (l.length() > 110 ? l.substring(0, 110) + "…" : l) + "[]";
+                }
+            }
+            return "[lightgray]（日志中无错误行）[]";
+        }catch(Throwable t){
+            return "[lightgray]（日志读取失败）[]";
+        }
+    }
+
     //region updates
 
     private static void checkUpdates(){
