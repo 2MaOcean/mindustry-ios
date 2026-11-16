@@ -43,6 +43,47 @@ public class IOSLauncher extends IOSApplication.Delegate{
         return new IOSApplication(new ClientLauncher(){
 
             @Override
+            public void setup(){
+                //iOS port: copy bundled mods before the mod loader runs, disabled by
+                //default so a conflicting mod can never block the game from starting.
+                copyBundledMods();
+                super.setup();
+            }
+
+            /** Copies preinstalled mods from the app bundle; bundled mods default to disabled. */
+            void copyBundledMods(){
+                try{
+                    Fi bundled = Core.files.internal("data/bundled-mods");
+                    Fi mods = Core.settings.getDataDirectory().child("mods");
+                    mods.mkdirs();
+                    final int[] copied = {0};
+                    for(Fi src : bundled.list()){
+                        if(src.isDirectory()) continue;
+                        Fi dst = mods.child(src.name());
+                        if(!dst.exists()){
+                            src.copyTo(dst);
+                            copied[0]++;
+                            String key = "mod-" + dst.nameWithoutExtension() + "-enabled";
+                            if(Core.settings.get(key, null) == null){
+                                Core.settings.put(key, false);
+                            }
+                            Log.info("[launcher] bundled mod installed: @ (disabled by default)", dst.name());
+                        }
+                    }
+                    if(copied[0] > 0){
+                        Core.settings.forceSave();
+                        int count = copied[0];
+                        Core.app.post(() -> {
+                            if(ui != null) ui.showInfo("已安装 " + count + " 个内置模组（默认禁用，可在启动器-模组 中启用）");
+                        });
+                    }
+                }catch(Throwable t){
+                    Log.err("[launcher] bundled mod copy failed");
+                    Log.err(t);
+                }
+            }
+
+            @Override
             public void showFileChooser(FileChooserParams params){
                 if(!params.open){ //when exporting, just share it.
                     //ask for export name
