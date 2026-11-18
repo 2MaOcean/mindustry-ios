@@ -180,7 +180,7 @@ public class ResourceCenter{
             String error = null;
             Item[] items = new Item[0];
             try{
-                List<Item> list = MindustryToolApi.search(kind, 0, 40, "hot", null);
+                List<Item> list = MindustryToolApi.search(kind, 0, 40, null, null);
                 items = list.toArray(new Item[0]);
             }catch(Throwable t){
                 error = t.getMessage() == null ? t.toString() : t.getMessage();

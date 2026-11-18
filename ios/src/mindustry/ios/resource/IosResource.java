@@ -319,7 +319,11 @@ public class IosResource{
                     Fi meta = f.child(cand);
                     if(meta.exists()){
                         String s = meta.readString();
-                        Matcher m = Pattern.compile("(?im)^\\s*\"?name\"?\\s*[:=]\\s*\"?([A-Za-z0-9_\\-.]+)").matcher(s);
+                        //JSON style first: "name": "xxx" (single-line json has no line anchor)
+                        Matcher m = Pattern.compile("\"name\"\\s*:\\s*\"([^\"\\n]+)\"").matcher(s);
+                        if(m.find()) return m.group(1);
+                        //hjson style: name: xxx at line start
+                        m = Pattern.compile("(?im)^\\s*name\\s*[:=]\\s*([A-Za-z0-9_\\-.]+)").matcher(s);
                         if(m.find()) return m.group(1);
                     }
                 }catch(Throwable ignored){
