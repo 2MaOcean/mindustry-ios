@@ -1231,10 +1231,15 @@ public class Mods implements Loadable{
             }
 
             return new LoadedMod(sourceFile, zip, mainMod, loader, meta);
-        }catch(Exception e){
-            //delete root zip file so it can be closed on windows
+        }catch(Throwable e){
+            //iOS port: AOT class resolution failures throw Errors (NoClassDefFoundError,
+            //NoSuchMethodError...); catching Throwable turns them into per-mod load
+            //failures instead of crashing the whole game.
             if(rootZip != null) rootZip.delete();
-            throw e;
+            if(e instanceof Exception){
+                throw (Exception)e;
+            }
+            throw new ModLoadException(e.toString());
         }
     }
 

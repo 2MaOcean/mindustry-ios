@@ -12,7 +12,7 @@ import mindustry.game.EventType.*;
 import mindustry.net.*;
 import mindustry.ui.FileChooser.*;
 import mindustry.ui.fragments.MenuFragment;
-import mindustry.ios.launcher.IosLauncherDialog;
+import mindustry.ios.resource.ResourceCenter;
 import mindustry.gen.Icon;
 import mindustry.ui.*;
 import org.robovm.apple.coregraphics.*;
@@ -132,41 +132,33 @@ public class IOSLauncher extends IOSApplication.Delegate{
                     return;
                 }
 
-                UIDocumentBrowserViewController cont = new UIDocumentBrowserViewController((NSArray<NSString>)null);
+                //iOS port: use a standard document picker instead of the document browser;
+                //the browser only opens a directory view and does not let the user pick
+                //arbitrary files from other apps (iCloud, WeChat, Downloads...).
+                UIDocumentPickerViewController picker = new UIDocumentPickerViewController(new NSArray<NSURL>(), UIDocumentPickerMode.Import);
+                picker.setAllowsMultipleSelection(true);
 
-                NSArray<UIBarButtonItem> arr = new NSArray<>(new UIBarButtonItem(Core.bundle.get("cancel"), UIBarButtonItemStyle.Plain,
-                    uiBarButtonItem -> cont.dismissViewController(true, () -> {})));
-
-                cont.setAllowsDocumentCreation(false);
-                cont.setAdditionalLeadingNavigationBarButtonItems(arr);
-
-                class ChooserDelegate extends NSObject implements UIDocumentBrowserViewControllerDelegate{
+                class PickerDelegate extends NSObject implements UIDocumentPickerDelegate{
                     @Override
-                    public void didPickDocumentURLs(UIDocumentBrowserViewController controller, NSArray<NSURL> documentURLs){
-                    }
-
-                    @Override
-                    public void didPickDocumentsAtURLs(UIDocumentBrowserViewController controller, NSArray<NSURL> documentURLs){
+                    public void didPickDocuments(UIDocumentPickerViewController controller, NSArray<NSURL> documentURLs){
                         if(documentURLs.isEmpty()) return;
 
                         Seq<Fi> results = new Seq<>();
-                        NSFileCoordinator coord = new NSFileCoordinator(null);
                         for(NSURL url : documentURLs){
-                            url.startAccessingSecurityScopedResource();
+                            boolean scoped = false;
                             try{
-                                coord.coordinateReadingItem(url, NSFileCoordinatorReadingOptions.ForUploading, result -> {
-                                    Fi src = Core.files.absolute(result.getAbsoluteURL().getPath());
-                                    Fi dst = Core.files.absolute(getDocumentsDirectory()).child(src.name());
-                                    src.copyTo(dst);
-                                    results.add(dst);
-                                });
+                                scoped = url.startAccessingSecurityScopedResource();
+                                Fi src = Core.files.absolute(url.getPath());
+                                Fi dst = Core.files.absolute(getDocumentsDirectory()).child(src.name());
+                                //copy out of the sandbox into the app documents dir
+                                src.copyTo(dst);
+                                results.add(dst);
                             }catch(Throwable e){
-                                ui.showException(e);
+                                Log.err("[launcher] failed to copy picked file: " + url);
+                                Log.err(e);
+                            }finally{
+                                if(scoped) url.stopAccessingSecurityScopedResource();
                             }
-
-                            url.stopAccessingSecurityScopedResource();
-
-                            cont.dismissViewController(true, () -> {});
                         }
 
                         Core.app.post(() -> {
@@ -179,32 +171,24 @@ public class IOSLauncher extends IOSApplication.Delegate{
                     }
 
                     @Override
-                    public void didRequestDocumentCreationWithHandler(UIDocumentBrowserViewController controller, VoidBlock2<NSURL, UIDocumentBrowserImportMode> importHandler){
-
+                    public void didPickDocument(UIDocumentPickerViewController controller, NSURL url){
+                        //legacy single-file callback
+                        didPickDocuments(controller, new NSArray<>(url));
                     }
 
                     @Override
-                    public void didImportDocument(UIDocumentBrowserViewController controller, NSURL sourceURL, NSURL destinationURL){
-                    }
-
-                    @Override
-                    public void failedToImportDocument(UIDocumentBrowserViewController controller, NSURL documentURL, NSError error){
-                    }
-
-                    @Override
-                    public NSArray<UIActivity> applicationActivities(UIDocumentBrowserViewController controller, NSArray<NSURL> documentURLs){
-                        return null;
-                    }
-
-                    @Override
-                    public void willPresentActivityViewController(UIDocumentBrowserViewController controller, UIActivityViewController activityViewController){
-
+                    public void wasCancelled(UIDocumentPickerViewController controller){
                     }
                 }
 
-                cont.setDelegate(new ChooserDelegate());
+                picker.setDelegate(new PickerDelegate());
 
-                UIApplication.getSharedApplication().getKeyWindow().getRootViewController().presentViewController(cont, true, () -> {});
+                UIViewController root = UIApplication.getSharedApplication().getKeyWindow().getRootViewController();
+                if(root == null){
+                    ui.showException(new RuntimeException("no root view controller"));
+                    return;
+                }
+                root.presentViewController(picker, true, () -> {});
             }
             @Override
             public ClassLoader loadJar(Fi jar, ClassLoader parent){
@@ -282,11 +266,10 @@ public class IOSLauncher extends IOSApplication.Delegate{
         boolean b = super.didFinishLaunching(application, options);
 
         Events.on(ClientLoadEvent.class, e -> Core.app.post(() -> Core.app.post(() -> {
-            //iOS port: show the launcher screen and register a main menu entry for it.
+            //iOS port: register a main menu entry for the resource center.
             if(MenuFragment.customMenuButtons.isEmpty()){
-                MenuFragment.customMenuButtons.add(new MenuFragment.MenuButton("启动器", Icon.list, IosLauncherDialog::toggle));
+                MenuFragment.customMenuButtons.add(new MenuFragment.MenuButton("资源中心", Icon.list, ResourceCenter::toggle));
             }
-            IosLauncherDialog.maybeShow();
         })));
 
         Events.on(ClientLoadEvent.class, e -> Core.app.post(() -> Core.app.post(() -> Core.scene.table(Styles.black9, t -> {
