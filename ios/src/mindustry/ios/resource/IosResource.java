@@ -310,6 +310,194 @@ public class IosResource{
 
     //endregion
 
+    //region url import & type detection
+
+    /** downloads a url, sniffs the mindustry data type, and installs it; runs on background thread */
+    public static void importFromUrl(String rawUrl, Runnable onChange){
+        Threads.thread(() -> {
+            try{
+                String url = rawUrl.trim();
+                if(url.isEmpty()) throw new IOException("链接为空");
+                //auto-accelerate github links for CN networks
+                if(url.startsWith("https://github.com/") || url.startsWith("http://github.com/")){
+                    url = "https://gh-proxy.com/" + url;
+                }
+                String name = url.substring(url.lastIndexOf('/') + 1);
+                if(name.isEmpty() || !name.contains(".")) name = "imported-" + System.currentTimeMillis();
+                name = sanitize(name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name);
+                Core.app.post(() -> ui.loadfrag.show("下载中…"));
+                byte[] data = httpGetBytes(url);
+                String result = detectAndInstall(data, name);
+                Core.app.post(() -> {
+                    ui.loadfrag.hide();
+                    ui.showInfo("导入成功: " + result);
+                    if(onChange != null) onChange.run();
+                });
+            }catch(Throwable t){
+                Core.app.post(() -> {
+                    ui.loadfrag.hide();
+                    ui.showException(t);
+                });
+            }
+        });
+    }
+
+    /** installs base64 schematic text from the clipboard; background thread */
+    public static void importFromClipboard(Runnable onChange){
+        Threads.thread(() -> {
+            try{
+                String text = Core.app.getClipboardText();
+                if(text == null || text.trim().isEmpty()) throw new IOException("剪贴板为空");
+                Core.app.post(() -> ui.loadfrag.show("解析中…"));
+                byte[] data = text.trim().getBytes(StandardCharsets.UTF_8);
+                String result = detectAndInstall(data, "clipboard-" + backupFormat.format(new Date()));
+                Core.app.post(() -> {
+                    ui.loadfrag.hide();
+                    ui.showInfo("导入成功: " + result);
+                    if(onChange != null) onChange.run();
+                });
+            }catch(Throwable t){
+                Core.app.post(() -> {
+                    ui.loadfrag.hide();
+                    ui.showException(t);
+                });
+            }
+        });
+    }
+
+    /** magic-number sniffing: MSAV map / msch schematic / PK zip mod / bXNjaA base64 schematic */
+    public static String detectAndInstall(byte[] data, String suggestedName) throws Exception{
+        if(data.length < 4) throw new IOException("数据太小，无法识别");
+        if(data[0]=='M' && data[1]=='S' && data[2]=='A' && data[3]=='V'){
+            Fi target = customMapDirectory.child(suggestedName + ".msav");
+            customMapDirectory.mkdirs();
+            target.writeBytes(data, false);
+            return "地图 → " + target.name();
+        }
+        if(data[0]=='m' && data[1]=='s' && data[2]=='c' && data[3]=='h'){
+            Fi target = schematicDirectory.child(suggestedName + ".msch");
+            schematicDirectory.mkdirs();
+            target.writeBytes(data, false);
+            return "蓝图 → " + target.name();
+        }
+        if(data[0]=='P' && data[1]=='K'){
+            Fi target = modDirectory.child(suggestedName + ".zip");
+            modDirectory.mkdirs();
+            target.writeBytes(data, false);
+            return "模组 → " + target.name() + "（重启后生效）";
+        }
+        //base64-encoded schematic text (the community share format)
+        try{
+            String s = new String(data, StandardCharsets.UTF_8).trim();
+            Matcher m = Pattern.compile("bXNjaA[A-Za-z0-9+/=]+").matcher(s);
+            String b64 = m.find() ? m.group(0) : (s.startsWith("bXNjaA") ? s : null);
+            if(b64 != null){
+                byte[] decoded = Base64.getMimeDecoder().decode(b64);
+                if(decoded.length > 4 && decoded[0]=='m' && decoded[1]=='s' && decoded[2]=='c' && decoded[3]=='h'){
+                    Fi target = schematicDirectory.child(suggestedName + ".msch");
+                    schematicDirectory.mkdirs();
+                    target.writeBytes(decoded, false);
+                    return "蓝图（base64 解码） → " + target.name();
+                }
+            }
+        }catch(Throwable ignored){
+        }
+        String head = "";
+        for(int i = 0; i < Math.min(8, data.length); i++) head += String.format("%02X ", data[i]);
+        throw new IOException("无法识别的数据类型（头部: " + head + "）");
+    }
+
+    /** lists the latest release's zip assets of a mod-compilation repo */
+    public static List<Map<String, Object>> compilationAssets(String repo) throws Exception{
+        String json = httpGet("https://api.github.com/repos/" + repo + "/releases/latest");
+        List<Map<String, Object>> out = new ArrayList<>();
+        Matcher mn = Pattern.compile("\"name\"\\s*:\\s*\"([^\"\\n]+[.]zip)\"").matcher(json);
+        Matcher mu = Pattern.compile("\"browser_download_url\"\\s*:\\s*\"([^\"\\n]+[.]zip)\"").matcher(json);
+        while(mn.find() && mu.find()){
+            Map<String, Object> e = new HashMap<>();
+            e.put("name", mn.group(1));
+            e.put("url", mu.group(1));
+            out.add(e);
+        }
+        return out;
+    }
+
+    /** installs a compilation zip: extracts every entry that contains a mod.hjson at its root level */
+    public static int installCompilationZip(byte[] data) throws Exception{
+        java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(new ByteArrayInputStream(data));
+        java.util.zip.ZipEntry entry;
+        modDirectory.mkdirs();
+        int installed = 0;
+        Map<String, ByteArrayOutputStream> dirs = new HashMap<>();
+        while((entry = zin.getNextEntry()) != null){
+            String n = entry.getName();
+            ByteArrayOutputStream buf = dirs.computeIfAbsent(n, k -> new ByteArrayOutputStream());
+            byte[] buf2 = new byte[8192];
+            int r;
+            try(InputStream single = new java.io.ByteArrayInputStream(new byte[0])){
+                //read entry fully into its buffer
+                while((r = zin.read(buf2)) > 0) buf.write(buf2, 0, r);
+            }
+        }
+        zin.close();
+        //group entries by their mod root (first path segment containing mod.hjson)
+        Map<String, Map<String, byte[]>> modRoots = new LinkedHashMap<>();
+        for(Map.Entry<String, ByteArrayOutputStream> e : dirs.entrySet()){
+            String n = e.getKey();
+            byte[] content = e.getValue().toByteArray();
+            int slash = n.indexOf('/');
+            if(slash > 0){
+                String root = n.substring(0, slash);
+                String rest = n.substring(slash + 1);
+                if(rest.isEmpty()) continue;
+                modRoots.computeIfAbsent(root, k -> new LinkedHashMap<>()).put(rest, content);
+            }else{
+                modRoots.computeIfAbsent("", k -> new LinkedHashMap<>()).put(n, content);
+            }
+        }
+        for(Map.Entry<String, Map<String, byte[]>> root : modRoots.entrySet()){
+            Map<String, byte[]> files = root.getValue();
+            if(files.containsKey("mod.hjson") || files.containsKey("mod.json")){
+                //this root is itself a mod (single-mod zip)
+                Fi target = modDirectory.child(root.getKey().isEmpty() ? "compilation-mod" : root.getKey());
+                if(!target.exists() || target.file().isFile()){
+                    target = modDirectory.child(root.getKey() + "-mod");
+                }
+                target.mkdirs();
+                for(Map.Entry<String, byte[]> fe : files.entrySet()){
+                    Fi out = target.child(fe.getKey());
+                    out.parent().mkdirs();
+                    out.writeBytes(fe.getValue(), false);
+                }
+                installed++;
+            }else{
+                //check for nested mod dirs (compilation of many mods)
+                for(Map.Entry<String, byte[]> fe : files.entrySet()){
+                    if(fe.getKey().endsWith("mod.hjson") || fe.getKey().endsWith("mod.json")){
+                        String inner = fe.getKey().substring(0, fe.getKey().lastIndexOf('/'));
+                        if(inner.contains("/")) inner = inner.substring(0, inner.lastIndexOf('/'));
+                        Fi modDir = modDirectory.child(inner.isEmpty() ? "mod-" + installed : inner);
+                        modDir.mkdirs();
+                        for(Map.Entry<String, byte[]> fe2 : files.entrySet()){
+                            if(fe2.getKey().startsWith(inner + "/") || fe.getKey().startsWith(root.getKey())){
+                                String rel = fe2.getKey().startsWith(inner + "/") ? fe2.getKey().substring(inner.length() + 1) : fe2.getKey();
+                                if(rel.startsWith(root.getKey() + "/")) rel = rel.substring(root.getKey().length() + 1);
+                                Fi out = modDir.child(rel);
+                                out.parent().mkdirs();
+                                out.writeBytes(fe2.getValue(), false);
+                            }
+                        }
+                        installed++;
+                        break;
+                    }
+                }
+            }
+        }
+        return installed;
+    }
+
+    //endregion
+
     //region meta & listing
 
     public static String modMetaName(Fi f){

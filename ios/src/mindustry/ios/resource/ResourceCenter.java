@@ -135,11 +135,25 @@ public class ResourceCenter{
         content.add(online).growX().row();
         loadOnline(kind, online);
 
+        content.button(b -> {
+            b.image(Icon.link);
+            b.add(" 从链接导入" + title);
+        }, Styles.cleart, () -> {
+            ui.showTextInput("@mod.import.github", "", 64, "", url -> IosResource.importFromUrl(url, ResourceCenter::rebuild));
+        }).pad(6f).height(56f).growX().row();
+
         content.add(section(title + " - 本地 (" + IosResource.countFiles(localDir, localExts) + ")")).padTop(16f).row();
         content.button(b -> {
             b.image(Icon.add);
-            b.add(" 导入" + title);
+            b.add(" 从文件导入" + title);
         }, Styles.cleart, () -> IosResource.importTo(localDir, ResourceCenter::rebuild, localExts)).pad(6f).height(56f).growX().row();
+
+        if(page == 0){
+            content.button(b -> {
+                b.image(Icon.copy);
+                b.add(" 从剪贴板导入蓝图");
+            }, Styles.cleart, () -> IosResource.importFromClipboard(ResourceCenter::rebuild)).pad(6f).height(56f).growX().row();
+        }
 
         Fi[] files = IosResource.listFiles(localDir, localExts);
         if(files.length == 0){
@@ -205,6 +219,12 @@ public class ResourceCenter{
                     b.image(Icon.link);
                     b.add(" 在 MindustryTool 网站浏览更多");
                 }, Styles.cleart, () -> Core.app.openURI("https://mindustry-tool.com/cn/" + kind)).pad(6f).height(50f).growX().row();
+                if(kind.equals("maps")){
+                    section.button(b -> {
+                        b.image(Icon.link);
+                        b.add(" 打开 Mindustry 资源站 (mindustry.top)");
+                    }, Styles.cleart, () -> Core.app.openURI("https://www.mindustry.top/")).pad(6f).height(50f).growX().row();
+                }
             });
         });
     }
@@ -249,6 +269,11 @@ public class ResourceCenter{
         Table online = new Table();
         content.add(online).growX().row();
         loadModIndex(online);
+
+        content.add(section("模组 - 模组合集 (国内打包)")).padTop(16f).row();
+        Table compilation = new Table();
+        content.add(compilation).growX().row();
+        loadCompilation(compilation);
 
         content.add(section("模组 - 本地 (" + IosResource.countFiles(modDirectory, "zip", "jar") + ")")).padTop(16f).row();
         content.button(b -> {
@@ -300,6 +325,62 @@ public class ResourceCenter{
                 section.add(gray("共 " + fMods.size() + " 个（按热度排序，显示前 " + n + "）")).pad(4f).row();
                 for(int i = 0; i < n; i++){
                     section.add(IosResource.modIndexRow(fMods.get(i), ResourceCenter::rebuild)).pad(4f).growX().row();
+                }
+            });
+        });
+    }
+
+    /** loads the domestic mod-compilation release list */
+    private static void loadCompilation(Table section){
+        section.add(gray("加载中…")).pad(8f).row();
+        Threads.thread(() -> {
+            List<Map<String, Object>> assets = new ArrayList<>();
+            String compError = null;
+            try{
+                assets = IosResource.compilationAssets("xhstoyea/Mindustry-mod-compilations");
+            }catch(Throwable t){
+                compError = t.getMessage() == null ? t.toString() : t.getMessage();
+            }
+            final List<Map<String, Object>> fAssets = assets;
+            final String fCompError = compError;
+            Core.app.post(() -> {
+                section.clearChildren();
+                if(fCompError != null){
+                    section.add(red("获取失败: " + fCompError)).pad(6f).growX().wrap().row();
+                    return;
+                }
+                if(fAssets.isEmpty()){
+                    section.add(red("暂无合集。")).pad(6f).growX().wrap().row();
+                    return;
+                }
+                for(Map<String, Object> e : fAssets){
+                    final String aname = IosResource.str(e.get("name"));
+                    final String aurl = IosResource.str(e.get("url"));
+                    Table row = new Table(Tex.pane);
+                    row.table(info -> {
+                        info.add(aname).left().growX().wrap();
+                        info.add(gray("合集包（内含多个模组）")).right().color(Pal.gray).padLeft(8f);
+                    }).growX();
+                    row.button(Icon.download, Styles.clearNonei, () -> {
+                        ui.loadfrag.show("下载合集…");
+                        Threads.thread(() -> {
+                            try{
+                                byte[] data = IosResource.httpGetBytes(aurl);
+                                int installed = IosResource.installCompilationZip(data);
+                                Core.app.post(() -> {
+                                    ui.loadfrag.hide();
+                                    ui.showInfo("合集安装完成: " + installed + " 个模组（重启生效）");
+                                    rebuild();
+                                });
+                            }catch(Throwable t){
+                                Core.app.post(() -> {
+                                    ui.loadfrag.hide();
+                                    ui.showException(t);
+                                });
+                            }
+                        });
+                    }).size(52f).tooltip("下载并安装合集");
+                    section.add(row).pad(4f).growX().row();
                 }
             });
         });
