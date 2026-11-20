@@ -3,6 +3,7 @@ package mindustry.ios.resource;
 import arc.*;
 import arc.files.*;
 import arc.graphics.*;
+import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
 import arc.struct.*;
@@ -80,10 +81,26 @@ public class ResourceCenter{
     //region ui build
 
     private static void build(){
+        //opaque dark background (MindustryX style): the animated menu is fully hidden
+        Color bg = Color.valueOf("0e1014ff");
+
         root = new Table(t -> {
-            t.image(Tex.whiteui, new Color(0, 0, 0, 0.88f)).grow();
+            t.image(Tex.whiteui, bg).grow();
             t.row();
 
+            //top bar: title + close, with an accent underline
+            t.table(head -> {
+                head.table(h -> {
+                    h.image(Icon.terrain).color(Pal.accent).size(42f, 42f).pad(10f);
+                    h.add("资源中心").fontScale(1.25f).left();
+                    h.add("[gray]" + Version.buildString() + "[]").left().padLeft(10f);
+                    h.add().growX();
+                    h.button(Icon.cancel, Styles.clearNonei, ResourceCenter::hide).size(64f, 64f).pad(8f);
+                }).growX().height(80f);
+            }).growX().row();
+            t.image().color(Pal.accent).height(4f).growX().row();
+
+            //tab bar
             t.table(tabs -> {
                 for(int i = 0; i < pageNames.length; i++){
                     int idx = i;
@@ -94,9 +111,21 @@ public class ResourceCenter{
                     }).growX().height(64f).get();
                     b.update(() -> b.setChecked(page == idx));
                 }
-            }).growX().pad(10f).row();
+            }).growX().pad(8f).padTop(10f).row();
 
-            t.pane(st -> content = st).grow().pad(10f).row();
+            //content on a rounded card
+            t.table(card -> {
+                card.table(((TextureRegionDrawable)Tex.whiteui).tint(Color.valueOf("171a20ff")), pane -> {
+                    pane.top().left().defaults().growX().left();
+                    content = pane;
+                }).grow();
+            }).grow().pad(10f).padTop(6f).row();
+
+            //bottom status bar
+            t.table(foot -> {
+                foot.image().color(Pal.accent).height(2f).growX().padBottom(4f).row();
+                foot.add("[gray]数据源: MindustryTool / 官方模组索引[/gray]").fontScale(0.8f).center();
+            }).growX().padBottom(6f).row();
         });
 
         root.setFillParent(true);
