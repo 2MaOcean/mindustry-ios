@@ -1018,7 +1018,13 @@ public class Mods implements Loadable{
         try{
             run.run();
         }catch(Throwable t){
-            throw new RuntimeException("Error loading mod " + mod.meta.name, t);
+            //iOS port: isolate per-mod failures (including AOT Errors like
+            //NoClassDefFoundError from mod patches that don't match this game
+            //snapshot) instead of crashing the whole game. The mod is logged
+            //and skipped; all other mods keep working.
+            Log.err("Error initializing mod '@': @", mod.meta.name, t);
+            Log.err(t);
+            mod.state = ModState.contentErrors;
         }
     }
 
